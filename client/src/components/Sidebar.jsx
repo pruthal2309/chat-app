@@ -41,13 +41,13 @@ const Sidebar = () => {
                 </div>
                 <div className='bg-[#282142] rounded-full flex items-center gap-2 py-3 px-4 mt-5'>
                   <img src={assets.search_icon} alt="Search" className='w-3' />
-                  <input onChange={(e) => setInput(e.target.value)} type="text" className='bg-transperent border-none outline-none text-white text-xs placeholder-[#c8c8c8] flex-l' placeholder='Search User...'/>
+                  <input onChange={(e) => setInput(e.target.value)} type="text" className='bg-transparent border-none outline-none text-white text-xs placeholder-[#c8c8c8] flex-1' placeholder='Search User...'/>
                 </div>
             </div>
 
             <div className='flex flex-col'>
                 {filteredUsers.map((user, index) => (
-                  <div onClick={() => {setSelectedUser(user); setUnseenMessages(prev => ({...prev,  [user._id]:0}))}} key={index} className={`relative flex items-center gap-2 p-2 rounded cursor-pointer max-sm:text:sm ${selectedUser?._id === user._id ? 'bg-[#282142]/50' : ''}`}>
+                  <div onClick={() => {setSelectedUser(user); setUnseenMessages(prev => ({...prev,  [user._id]:0}))}} key={index} className={`relative flex items-center gap-2 p-2 rounded cursor-pointer max-sm:text-sm ${selectedUser?._id === user._id ? 'bg-[#282142]/50' : ''}`}>
                     <img src={user?.profilePic || assets.avatar_icon} alt="User Profile" className='w-[35px] aspect-[1/1] rounded-full' />
                     <div>
                       <p>{user.fullName}</p>

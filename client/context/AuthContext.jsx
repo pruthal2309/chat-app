@@ -14,6 +14,7 @@ export const AuthProvider =({ children }) =>{
     const [authUser, setAuthUser] = useState(null);
     const [onlineUsers, setOnlineUsers] = useState([]);
     const [socket, setSocket] = useState(null);
+    const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
     const checkAuth = async () => {
         try{
@@ -25,6 +26,9 @@ export const AuthProvider =({ children }) =>{
         }
         catch (error){
             toast.error(error.message); 
+            setAuthUser(null);
+        } finally {
+            setIsCheckingAuth(false);
         }
     }
 
@@ -102,6 +106,9 @@ export const AuthProvider =({ children }) =>{
         if (token) {
             axios.defaults.headers.common['token'] = token;
             checkAuth();
+        } else {
+            setAuthUser(null);
+            setIsCheckingAuth(false);
         }
     }, [token]);
 
@@ -118,7 +125,8 @@ export const AuthProvider =({ children }) =>{
         // setSocket
         login,
         logout,
-        updateProfile
+        updateProfile,
+        isCheckingAuth
     }
 
     return (
@@ -127,3 +135,4 @@ export const AuthProvider =({ children }) =>{
         </AuthContext.Provider>
     )
 }
+
