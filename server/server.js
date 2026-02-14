@@ -1,4 +1,4 @@
-import  express from 'express';
+import express from 'express';
 import 'dotenv/config';
 import cors from 'cors';
 import http from 'http';
@@ -22,11 +22,11 @@ export const io = new Server(server, {
 export const userSocketMap = {};
 
 // Socket.io connection handler
-io.on("connection", (socket)=>{
+io.on("connection", (socket) => {
     const userId = socket.handshake.query.userId;
     console.log("User Connected: ", userId);
 
-    if(userId) userSocketMap[userId] = socket.id;
+    if (userId) userSocketMap[userId] = socket.id;
     console.log("User SocketId: ", socket.id);
 
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
@@ -40,12 +40,31 @@ io.on("connection", (socket)=>{
 
 
 // Middleware
-app.use(express.json({limit: "4mb"}));
+app.use(express.json({ limit: "4mb" }));
 app.use(cors());
 
 app.use("/api/status", (req, res) => res.send("API is working"));
 app.use("/api/auth", userRouter);
 app.use("/api/messages", messageRouter);
+
+// Serve static files from the client dist directory
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Ensure we point to the correct dist folder. 
+// Assuming server.js is in /server and dist is in /client/dist
+const clientDistPath = path.join(__dirname, '../client/dist');
+
+app.use(express.static(clientDistPath));
+
+// Handle React routing, return all requests to React app
+// Handle React routing, return all requests to React app
+app.get(/(.*)/, (req, res) => {
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+});
 
 
 // Connect to MongoDB
@@ -53,4 +72,4 @@ await connectDB();
 
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {console.log(`Server is running on port ${PORT}`); }); 
+server.listen(PORT, () => { console.log(`Server is running on port ${PORT}`); }); 

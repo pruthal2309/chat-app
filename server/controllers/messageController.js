@@ -4,22 +4,22 @@ import cloudinary from "../lib/Cloudinary.js";
 import { userSocketMap, io } from "../server.js";
 
 // Get all users expect the logged in user
-export const getUsersForSidebar = async (req, res)=>{
-    try{
+export const getUsersForSidebar = async (req, res) => {
+    try {
         const userid = req.user._id;
-        const filteredUsers = await User.find({_id: { $ne: userid }}).select("-password");
+        const filteredUsers = await User.find({ _id: { $ne: userid } }).select("-password");
 
         // Count number of messages not seen
         const unseenMessages = {}
-        const promises = filteredUsers.map(async (user)=>{
+        const promises = filteredUsers.map(async (user) => {
             const messages = await Message.find({ senderId: user._id, receiverId: userid, seen: false });
-            if(messages.length > 0){
+            if (messages.length > 0) {
                 unseenMessages[user._id] = messages.length;
             }
         })
 
         await Promise.all(promises);
-        res.json({ success: true,  users: filteredUsers, unseenMessages });
+        res.json({ success: true, users: filteredUsers, unseenMessages });
 
     } catch (error) {
         console.log(error.message);
@@ -30,17 +30,17 @@ export const getUsersForSidebar = async (req, res)=>{
 // Get all messages for Selected User
 export const getMessages = async (req, res) => {
     try {
-        const {id: selecteduserId} = req.params;
+        const { id: selecteduserId } = req.params;
         const myId = req.user._id;
 
         const messages = await Message.find({
             $or: [
                 { senderId: myId, receiverId: selecteduserId },
                 { senderId: selecteduserId, receiverId: myId }
-            ] 
-        }).sort({ createdAt: 1});
+            ]
+        }).sort({ createdAt: 1 });
 
-        await Message.updateMany({senderId: selecteduserId, receiverId: myId}, { seen: true });
+        await Message.updateMany({ senderId: selecteduserId, receiverId: myId }, { seen: true });
         res.json({ success: true, messages });
 
     } catch (error) {
@@ -51,14 +51,18 @@ export const getMessages = async (req, res) => {
 
 // api to mark message as seen using messageid
 export const markMessageAsSeen = async (req, res) => {
-    try{
+    try {
+        const { id: messageId } = req.params;
         const message = await Message.findById(messageId);
 
-        if(message.receiverId.toString() !== req.user._id.toString()){
+        if (!message) {
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        if (message.receiverId.toString() !== req.user._id.toString()) {
             return res.status(403).json({ message: "Not authorized" });
         }
 
-        const {id: messageId} = req.params;
         await Message.findByIdAndUpdate(messageId, { seen: true });
         res.json({ success: true, message: "Message marked as seen" });
     } catch (error) {
@@ -68,15 +72,15 @@ export const markMessageAsSeen = async (req, res) => {
 }
 
 // Send message to selected user
-export const sendMessage =async (req, res) => {
-    try{
+export const sendMessage = async (req, res) => {
+    try {
 
-        const { text, image} = req.body;
+        const { text, image } = req.body;
         const receiverId = req.params.id;
         const senderId = req.user._id;
 
         let imageUrl;
-        if(image){
+        if (image) {
             const uploadResponse = await cloudinary.uploader.upload(image)
             imageUrl = uploadResponse.secure_url;
         }
@@ -90,11 +94,11 @@ export const sendMessage =async (req, res) => {
 
         //  Emit the new message to the reciever's socket
         const receiverSocketId = userSocketMap[receiverId];
-        if(receiverSocketId){
+        if (receiverSocketId) {
             io.to(receiverSocketId).emit("newMessage", newMessage);
         }
 
-        res.json({success: true, newMessage });
+        res.json({ success: true, newMessage });
 
     } catch (error) {
         console.log(error.message);
