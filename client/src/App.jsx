@@ -11,6 +11,11 @@ import bgImage from './assets/bgImage.svg'
 const App = () => {
   const { authUser, isCheckingAuth } = useContext(AuthContext);
 
+  // console.log("AuthUser: ", authUser)
+  useEffect(() => {
+    // console.log("AuthUser changed:", authUser);
+  }, [authUser]);
+
   if (isCheckingAuth && !authUser) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -18,11 +23,6 @@ const App = () => {
       </div>
     )
   }
-
-  // console.log("AuthUser: ", authUser)
-  useEffect(() => {
-    // console.log("AuthUser changed:", authUser);
-  }, [authUser]);
 
   return (
     <div className="bg-contain" style={{ backgroundImage: `url(${bgImage})` }}>
