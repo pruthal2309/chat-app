@@ -24,18 +24,38 @@ export const userSocketMap = {};
 // Socket.io connection handler
 io.on("connection", (socket) => {
     const userId = socket.handshake.query.userId;
-    console.log("User Connected: ", userId);
+    const userIdStr = String(userId); // normalize to string
+    console.log("User Connected: ", userIdStr);
 
-    if (userId) userSocketMap[userId] = socket.id;
-    console.log("User SocketId: ", socket.id);
+    if (userId) userSocketMap[userIdStr] = socket.id;
+    console.log("User SocketId: ", socket.id, "Map:", userSocketMap);
 
     io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
     socket.on("disconnect", () => {
-        console.log("User Disconnected: ", userId);
-        delete userSocketMap[userId];
+        console.log("User Disconnected: ", userIdStr);
+        delete userSocketMap[userIdStr];
         io.emit("getOnlineUsers", Object.keys(userSocketMap));
     });
+
+    socket.on("typing", ({ receiverId }) => {
+        const rid = String(receiverId);
+        const receiverSocketId = userSocketMap[rid];
+        console.log(`typing: sender=${userIdStr} receiver=${rid} socket=${receiverSocketId}`);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("typing", { senderId: userIdStr });
+        }
+    });
+
+    socket.on("stopTyping", ({ receiverId }) => {
+        const rid = String(receiverId);
+        const receiverSocketId = userSocketMap[rid];
+        console.log(`stopTyping: sender=${userIdStr} receiver=${rid}`);
+        if (receiverSocketId) {
+            io.to(receiverSocketId).emit("stopTyping", { senderId: userIdStr });
+        }
+    });
+
 })
 
 

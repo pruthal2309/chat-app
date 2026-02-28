@@ -33,21 +33,51 @@ export const getMessages = async (req, res) => {
         const { id: selecteduserId } = req.params;
         const myId = req.user._id;
 
+        // Mark unseen messages as seen FIRST
+        const unseenMessages = await Message.find({ 
+            senderId: selecteduserId, 
+            receiverId: myId, 
+            seen: false 
+        });
+
+        if (unseenMessages.length > 0) {
+            await Message.updateMany(
+                { senderId: selecteduserId, receiverId: myId, seen: false },
+                { seen: true }
+            );
+
+            // Emit messagesSeen events for the sender
+            const senderSocketId = userSocketMap[String(selecteduserId)];
+            if (senderSocketId) {
+                unseenMessages.forEach(msg => {
+                    io.to(senderSocketId).emit("messagesSeen", { messageId: msg._id });
+                });
+                console.log(`marked ${unseenMessages.length} messages as seen for sender=${selecteduserId}`);
+            }
+        }
+
+        // NOW fetch all messages (already updated with seen: true)
         const messages = await Message.find({
             $or: [
                 { senderId: myId, receiverId: selecteduserId },
                 { senderId: selecteduserId, receiverId: myId }
             ]
-        }).sort({ createdAt: 1 });
+        })
+            .populate({
+                path: 'replyTo',
+                populate: { path: 'senderId', select: 'fullName' }
+            })
+            .lean() // Return plain objects instead of Mongoose documents
+            .sort({ createdAt: 1 });
 
-        await Message.updateMany({ senderId: selecteduserId, receiverId: myId }, { seen: true });
         res.json({ success: true, messages });
 
     } catch (error) {
-        console.log(error.message);
-        res.json({ success: false, message: error.message });
+        console.log("Error in getMessages controller: ", error.message);
+        res.status(500).json({ success: false, message: "Internal Server Error" });
     }
 }
+
 
 // api to mark message as seen using messageid
 export const markMessageAsSeen = async (req, res) => {
@@ -59,11 +89,18 @@ export const markMessageAsSeen = async (req, res) => {
             return res.status(404).json({ message: "Message not found" });
         }
 
-        if (message.receiverId.toString() !== req.user._id.toString()) {
+        if (message.receiverId && message.receiverId.toString() !== req.user._id.toString()) {
             return res.status(403).json({ message: "Not authorized" });
         }
 
-        await Message.findByIdAndUpdate(messageId, { seen: true });
+        const updatedMessage = await Message.findByIdAndUpdate(messageId, { seen: true }, { new: true });
+
+        const senderSocketId = userSocketMap[String(message.senderId)];
+        if (senderSocketId) {
+            io.to(senderSocketId).emit("messagesSeen", { messageId: message._id });
+            console.log(`messagesSeen: markerId=${messageId} senderSocket=${senderSocketId}`);
+        }
+
         res.json({ success: true, message: "Message marked as seen" });
     } catch (error) {
         console.log(error.message);
@@ -74,14 +111,13 @@ export const markMessageAsSeen = async (req, res) => {
 // Send message to selected user
 export const sendMessage = async (req, res) => {
     try {
-
-        const { text, image } = req.body;
-        const receiverId = req.params.id;
+        const { text, image, replyTo } = req.body;
         const senderId = req.user._id;
+        const receiverId = req.params.id; // always a one-to-one chat
 
         let imageUrl;
         if (image) {
-            const uploadResponse = await cloudinary.uploader.upload(image)
+            const uploadResponse = await cloudinary.uploader.upload(image);
             imageUrl = uploadResponse.secure_url;
         }
 
@@ -89,19 +125,117 @@ export const sendMessage = async (req, res) => {
             senderId,
             receiverId,
             text,
-            image: imageUrl
-        })
+            image: imageUrl,
+            replyTo
+        });
 
-        //  Emit the new message to the reciever's socket
-        const receiverSocketId = userSocketMap[receiverId];
-        if (receiverSocketId) {
-            io.to(receiverSocketId).emit("newMessage", newMessage);
+        if (replyTo) {
+            await newMessage.populate('replyTo');
         }
 
-        res.json({ success: true, newMessage });
+        // Convert to plain object to ensure seen field and other fields are included
+        const plainMessage = JSON.parse(JSON.stringify(newMessage.toObject ? newMessage.toObject() : newMessage));
+
+        // debug: log mapping and socket id
+        const rid = String(receiverId);
+        const socketId = userSocketMap[rid];
+        console.log(`sendMessage: msgId=${plainMessage._id} sender=${senderId} receiver=${rid} seen=${plainMessage.seen} socketId=${socketId}`);
+
+        if (socketId) {
+            io.to(socketId).emit("newMessage", plainMessage);
+        }
+
+        res.json({ success: true, newMessage: plainMessage });
 
     } catch (error) {
         console.log(error.message);
         res.json({ success: false, message: error.message });
     }
 }
+
+// Delete message
+export const deleteMessage = async (req, res) => {
+    try {
+        const { id: messageId } = req.params;
+        const userId = req.user._id;
+
+        const message = await Message.findById(messageId);
+
+        if (!message) {
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        if (message.senderId.toString() !== userId.toString()) {
+            return res.status(403).json({ message: "Not authorized to delete this message" });
+        }
+
+        const updatedMessage = await Message.findByIdAndUpdate(
+            messageId,
+            {
+                text: "This message was deleted",
+                image: null,
+                deleted: true
+            },
+            { new: true }
+        );
+
+        if (message.receiverId) {
+            const receiverSocketId = userSocketMap[String(message.receiverId)];
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit("messageDeleted", updatedMessage);
+            }
+        }
+
+        res.json({ success: true, message: updatedMessage });
+
+    } catch (error) {
+        console.log("Error in deleteMessage controller: ", error.message);
+        res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+};
+
+// React to message
+export const reactToMessage = async (req, res) => {
+    try {
+        const { id: messageId } = req.params;
+        const { emoji } = req.body;
+        const userId = req.user._id;
+
+        const message = await Message.findById(messageId);
+
+        if (!message) {
+            return res.status(404).json({ message: "Message not found" });
+        }
+
+        const existingReactionIndex = message.reactions.findIndex(
+            (r) => r.userId.toString() === userId.toString()
+        );
+
+        if (existingReactionIndex > -1) {
+            if (message.reactions[existingReactionIndex].emoji === emoji) {
+                message.reactions.splice(existingReactionIndex, 1);
+            } else {
+                message.reactions[existingReactionIndex].emoji = emoji;
+            }
+        } else {
+            message.reactions.push({ userId, emoji });
+        }
+
+        await message.save();
+
+        const updatedMessage = await Message.findById(messageId);
+
+        if (message.receiverId) {
+            const receiverSocketId = userSocketMap[message.receiverId];
+            if (receiverSocketId) {
+                io.to(receiverSocketId).emit("messageReaction", updatedMessage);
+            }
+        }
+
+        res.json({ success: true, message: updatedMessage });
+
+    } catch (error) {
+        console.log("Error in reactToMessage controller: ", error.message);
+        res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+};
