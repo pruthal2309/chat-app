@@ -6,6 +6,8 @@ import { connectDB } from './lib/db.js';
 import userRouter from './routes/userRoutes.js';
 import messageRouter from './routes/messageRouters.js';
 import { Server } from 'socket.io';
+import { errorHandler, notFound } from './middleware/errorHandler.js';
+import jwt from 'jsonwebtoken';
 
 const app = express();
 const server = http.createServer(app);
@@ -13,17 +15,35 @@ const server = http.createServer(app);
 // Initalize Socket.io server
 export const io = new Server(server, {
     cors: {
-        origin: "*",
-        methods: ["GET", "POST", "PUT", "DELETE"]
+        origin: process.env.CLIENT_URL || "http://localhost:5173",
+        methods: ["GET", "POST", "PUT", "DELETE"],
+        credentials: true
     }
 });
 
 // Store online users
 export const userSocketMap = {};
 
+// Socket.io authentication middleware
+io.use((socket, next) => {
+    const token = socket.handshake.auth.token;
+    
+    if (!token) {
+        return next(new Error("Authentication error: No token provided"));
+    }
+    
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        socket.userId = decoded.userId;
+        next();
+    } catch (error) {
+        return next(new Error("Authentication error: Invalid token"));
+    }
+});
+
 // Socket.io connection handler
 io.on("connection", (socket) => {
-    const userId = socket.handshake.query.userId;
+    const userId = socket.userId; // Get from authenticated token
     const userIdStr = String(userId); // normalize to string
     console.log("User Connected: ", userIdStr);
 
@@ -61,31 +81,18 @@ io.on("connection", (socket) => {
 
 // Middleware
 app.use(express.json({ limit: "4mb" }));
-app.use(cors());
+app.use(cors({
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    credentials: true
+}));
 
 app.use("/api/status", (req, res) => res.send("API is working"));
 app.use("/api/auth", userRouter);
 app.use("/api/messages", messageRouter);
 
-// Serve static files from the client dist directory
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Ensure we point to the correct dist folder. 
-// Assuming server.js is in /server and dist is in /client/dist
-const clientDistPath = path.join(__dirname, '../client/dist');
-
-app.use(express.static(clientDistPath));
-
-// Handle React routing, return all requests to React app
-// Handle React routing, return all requests to React app
-app.get(/(.*)/, (req, res) => {
-    res.sendFile(path.join(clientDistPath, 'index.html'));
-});
-
+// Error handling middleware (must be after all routes)
+app.use(notFound);
+app.use(errorHandler);
 
 // Connect to MongoDB
 await connectDB();
