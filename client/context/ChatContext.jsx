@@ -124,6 +124,11 @@ export const ChatProvider = ({ children }) => {
             )) {
                 console.log("adding message to state");
                 setMessages((prev) => [...prev, newMessage]);
+
+                // If the message is from the selected user, mark it as seen immediately!
+                if (String(newMessage.senderId) === String(selectedUser._id)) {
+                    axios.put(`/api/messages/mark/${newMessage._id}`).catch(err => console.error(err));
+                }
             }
         });
 
