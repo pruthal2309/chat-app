@@ -43,12 +43,12 @@ export const AuthProvider = ({ children }) => {
                 // setToken(data.token);
                 // localStorage.setItem("token", data.token);
                 // toast.success(data.message);
-                setAuthUser(data.data.userData);
-                connectSocket(data.data.userData);
-
                 axios.defaults.headers.common['token'] = data.data.token;
                 setToken(data.data.token);
                 localStorage.setItem("token", data.data.token);
+
+                setAuthUser(data.data.userData);
+                connectSocket(data.data.userData);
 
                 toast.success(data.data.message);
             }
@@ -89,9 +89,13 @@ export const AuthProvider = ({ children }) => {
     // Connect Socket function to handle socket connection and Online user updates
     const connectSocket = (userData) => {
         if (!userData || socket?.connected) return;
+        const currentToken = localStorage.getItem("token");
         const newSocket = io(backendUrl, {
             query: {
                 userId: userData._id
+            },
+            auth: {
+                token: currentToken
             }
         });
         newSocket.connect();
