@@ -1,6 +1,8 @@
 # QuickChat - Real-Time Chat Application
 
-A high-performance, real-time chat application built with the MERN stack (MongoDB, Express, React, Node.js) and Socket.IO. 
+🔥 **Live Demo**: [https://chat-app-one-taupe-48.vercel.app](https://chat-app-one-taupe-48.vercel.app)
+
+A real-time chat application built with the MERN stack (MongoDB, Express, React, Node.js) and Socket.IO. 
 
 ## ✨ Key Features
 
