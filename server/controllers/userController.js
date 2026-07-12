@@ -68,6 +68,8 @@ export const checkAuth = (req, res) => {
     res.json({ success: true, user: req.user});
 }
 
+import { io } from "../server.js";
+
 // Controller to update user profile details
 export const updateProfile = async (req, res) => {
     try {
@@ -77,11 +79,13 @@ export const updateProfile = async (req, res) => {
         let updatedUser;
 
         if(!profilePic){
-            updatedUser = await User.findByIdAndUpdate(userId, {bio, fullName}, {new: true});
+            updatedUser = await User.findByIdAndUpdate(userId, {bio, fullName}, {new: true}).select("-password");
         }else{
             const upload = await cloudinary.uploader.upload(profilePic);
-            updatedUser = await User.findByIdAndUpdate(userId, {profilePic: upload.secure_url, bio, fullName}, {new: true});
+            updatedUser = await User.findByIdAndUpdate(userId, {profilePic: upload.secure_url, bio, fullName}, {new: true}).select("-password");
         }
+
+        io.emit("userUpdated", updatedUser);
 
         res.json({success: true, user: updatedUser});
     } catch (error) {

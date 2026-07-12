@@ -177,6 +177,18 @@ export const ChatProvider = ({ children }) => {
                 ));
             }
         });
+
+        socket.on("userUpdated", (updatedUser) => {
+            // Update the sidebar users list
+            setUsers((prevUsers) => prevUsers.map((user) =>
+                user._id === updatedUser._id ? updatedUser : user
+            ));
+
+            // If the selected user was updated, update selectedUser state
+            if (selectedUser && selectedUser._id === updatedUser._id) {
+                setSelectedUser((prev) => ({ ...prev, ...updatedUser }));
+            }
+        });
     };
 
     // function to Unsubscribe from messages
@@ -188,6 +200,7 @@ export const ChatProvider = ({ children }) => {
             socket.off("typing");
             socket.off("stopTyping");
             socket.off("messagesSeen");
+            socket.off("userUpdated");
         }
     }
 
