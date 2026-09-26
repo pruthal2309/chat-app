@@ -37,17 +37,10 @@ export const AuthProvider = ({ children }) => {
         try {
             const { data } = await axios.post(`/api/auth/${state}`, credentials);
             if (data.success) {
-                // setAuthUser(data.userData);
-                // connectSocket(data.userData);
-                // axios.defaults.headers.common['token'] = data.token;
-                // setToken(data.token);
-                // localStorage.setItem("token", data.token);
-                // toast.success(data.message);
-                axios.defaults.headers.common['token'] = data.data.token;
-                setToken(data.data.token);
-                localStorage.setItem("token", data.data.token);
-
-                setAuthUser(data.data.userData);
+                axios.defaults.headers.common['token'] = data.data.token; // Tells Axios to include this token in future API requests.
+                setToken(data.data.token); // Stores the token in React State
+                localStorage.setItem("token", data.data.token); // Stores the token in the browser so it survives page refreshes.
+                setAuthUser(data.data.userData); // Stores the token in browser so it survives page refreshes.
                 connectSocket(data.data.userData);
 
                 toast.success(data.data.message);
@@ -99,7 +92,7 @@ export const AuthProvider = ({ children }) => {
             }
         });
         newSocket.connect();
-        setSocket(newSocket);
+        setSocket(newSocket); // Stores the connection in React State
 
         newSocket.on("getOnlineUsers", (userIds) => {
             setOnlineUsers(userIds);
@@ -116,22 +109,8 @@ export const AuthProvider = ({ children }) => {
         }
     }, [token]);
 
-
-    const value = {
-        axios,
-        // token,
-        // setToken,
-        authUser,
-        // setAuthUser,
-        onlineUsers,
-        // setOnlineUsers,
-        socket,
-        // setSocket
-        login,
-        logout,
-        updateProfile,
-        isCheckingAuth
-    }
+    // This creates an object containing all the authentication-related data and functions that you want to share with other React components.
+    const value = { axios, authUser, onlineUsers, socket, login, logout, updateProfile, isCheckingAuth }
 
     return (
         <AuthContext.Provider value={value}>

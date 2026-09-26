@@ -35,7 +35,7 @@ export const getMessages = async (req, res) => {
 
         // Mark unseen messages as seen FIRST
         const unseenMessages = await Message.find({ 
-            senderId: selecteduserId, 
+            senderId: selecteduserId,
             receiverId: myId, 
             seen: false 
         });

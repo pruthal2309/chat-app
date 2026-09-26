@@ -31,7 +31,6 @@ export const signUp = async (req, res)=>{
 
         const token = generateToken(newUser._id);
         res.json({success: true, data: { userData: newUser, token , message:"Account created Scuccessfully"} });
-        // res.json({success: true, userData: newUser, token , message:"Account created Scuccessfully"});
     }catch(error){
         console.log(error);
         res.json({success: false, message: error.message});
